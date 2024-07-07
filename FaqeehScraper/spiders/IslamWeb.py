@@ -14,6 +14,8 @@ class IslamWeb(scrapy.Spider):
     start_urls = [
         # "https://www.islamweb.net/ar/fatwa/",
         "https://www.islamweb.net/ar/fatawa/1218/%D8%B3%D9%86%D9%86-%D8%A7%D9%84%D9%81%D8%B7%D8%B1%D8%A9",
+        # "https://www.islamweb.net/ar/fatwa/264286/%D8%A7%D9%84%D9%85%D8%B4%D8%A7%D9%87%D8%AF-%D9%84%D9%84%D8%A3%D9%81%D9%84%D8%A7%D9%85-%D8%A7%D9%84%D8%A5%D8%A8%D8%A7%D8%AD%D9%8A%D8%A9-%D9%87%D9%84-%D9%8A%D8%AD%D9%83%D9%85-%D8%B9%D9%84%D9%8A%D9%87-%D8%A8%D8%A3%D9%86%D9%87-%D8%B2%D8%A7%D9%86",
+        # 'https://www.islamweb.net/ar/fatwa/51769/%D9%85%D8%AD%D8%A7%D8%B0%D9%8A%D8%B1-%D8%A5%D8%B7%D9%84%D8%A7%D9%82-%D8%A7%D9%84%D9%86%D8%B8%D8%B1-%D9%81%D9%8A-%D8%A7%D9%84%D8%A3%D9%81%D9%84%D8%A7%D9%85-%D8%A7%D9%84%D8%AE%D9%84%D9%8A%D8%B9%D8%A9'
         # "https://www.islamweb.net/ar/fatawa/1224/إعفاء-اللحية",
         # "https://www.islamweb.net/ar/fatawa/1224/%D8%A5%D8%B9%D9%81%D8%A7%D8%A1-%D8%A7%D9%84%D9%84%D8%AD%D9%8A%D8%A9?pageno=1&order="
     ]
@@ -33,7 +35,7 @@ class IslamWeb(scrapy.Spider):
     def appendDomain(self, urls):
         return list(map(lambda url: self.domain_url.strip("/") + url, urls))
 
-    def parseQuestionDetails(self, response):
+    def parse(self, response):
         ticketNumber = response.request.url.split("/")[-2]
 
         title = response.css("h1[itemprop='name']::text").get()
@@ -57,16 +59,22 @@ class IslamWeb(scrapy.Spider):
         if len(texts) > 0:
             question = texts[0].css("p::text").extract()
             if question:
-                question = "\n".join(question).replace("\r","")
-
-            answer = texts[1].xpath("p/text() | p/a/@href").extract()
+                question = " ".join(question).replace("\xa0","").replace("\u200c", "").replace("\r","")
+                question = re.sub(r"\\n{2,}", " ", question)
+                question = re.sub("[ً-ْ]", "", question)
+            answer = texts[1].xpath("p//text()").extract()
+            ignore_numbers_regex = "(" + "|".join(texts[1].xpath("p/a/text()").extract()) + ")"
+            print(ignore_numbers_regex)
             if answer:
-                answer = "\n".join(answer).replace("\xa0","").replace("\r","")
+                answer = "".join(answer).replace("\xa0","").replace("\u200c", "").replace("\r","")
+                answer = re.sub(r"\\n{2,}", " ", answer)
+                answer = re.sub("[ً-ْ]", "", answer)
+                answer = re.sub(ignore_numbers_regex, "", answer)
+                answer = re.sub("( ، )+", "", answer)
 
         related_questions_texts = response.css(".tab_content.tab_1.tab_active.itemslist h2 a::text").extract()
         if related_questions_texts:
             related_questions_texts = "|".join(related_questions_texts)
-        
         self.fatwa_counter += 1
         print(f"Page #{self.page_counter} | Fatwa #{self.fatwa_counter}",end='\r')
 
